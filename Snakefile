@@ -24,28 +24,26 @@ RESULT_DIR = config["result_dir"]
 # Samples and conditions
 ########################
 
-# read the tabulated separated table containing the sample, condition and fastq file information∂DE
-units = pd.read_table(config["units"], dtype=str).set_index(["sample"], drop=False)
+# read the tabulated separated table containing the sample, condition and fastq file information
+#units = pd.read_table(config["units"], dtype=str).set_index(["sample"], drop=False)
+samples = pd.read_csv("samples.tsv", dtype=str,index_col=0,sep="\t")
 
 # create lists containing the sample names and conditions
-SAMPLES = units.index.get_level_values('sample').unique().tolist()
-#CONDITIONS = list(pd.read_table(config["units"])["condition"])
-fwd        = dict(zip(list(pd.read_table(config["units"])["sample"]), list(pd.read_table(config["units"])["fq1"])))
-rev        = dict(zip(list(pd.read_table(config["units"])["sample"]), list(pd.read_table(config["units"])["fq2"])))
-samplefile = config["units"]
+SAMPLES = samples.index.get_level_values('sample').unique().tolist()
+samplefile = config["samples"]
 
 
 ###########################
 # Input functions for rules
 ###########################
 def get_fastq(wildcards):
-    return units.loc[(wildcards.sample), ["fq1", "fq2"]].dropna()
+    return samples.loc[(wildcards.sample), ["fq1", "fq2"]].dropna()
 
 def get_forward_fastq(wildcards):
-    return units.loc[(wildcards.sample), ["fq1"]].dropna()
+    return samples.loc[(wildcards.sample), ["fq1"]].dropna()
 
 def get_reverse_fastq(wildcards):
-    return units.loc[(wildcards.sample), ["fq2"]].dropna()
+    return samples.loc[(wildcards.sample), ["fq2"]].dropna()
 
 def get_bams():
     bams = [b for bam in glob("mapped/*.bam")]
@@ -341,7 +339,7 @@ rule create_counts_table:
 rule DESeq2_analysis:
     input:
         counts      = WORKING_DIR + "counts.txt",
-        samplefile  = samplefile
+        samplefile  = config["samples"]
     output:
         WORKING_DIR + "results/result.csv"
     message:
