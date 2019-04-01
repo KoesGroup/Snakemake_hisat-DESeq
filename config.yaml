@@ -3,16 +3,16 @@ units: samples.tsv        # Complete the tab sep value file with the path to the
 
 ### Definition of the path Snakemake has to create
 working_dir: "temp/"
-result_dir: "results/"
+result_dir:  "results/"
 
 ### Genome and annotations
 refs:
   genome:
-    "ftp://ftp.solgenomics.net/genomes/Petunia_axillaris/assembly/Petunia_axillaris_v1.6.2_genome.fasta"
-  proteins_fasta:
-    "ftp://ftp.solgenomics.net/genomes/Petunia_axillaris/annotation/Petunia_axillaris_v1.6.2_proteins.fasta"
-  transcriptome_gtf:
-    "ftp://ftp.solgenomics.net/genomes/Petunia_axillaris/annotation/Petunia_axillaris_v1.6.2_gene_models.gff"
+    "refs/S_lycopersicum_chromosomes.3.00.fa"
+  proteins:
+    "refs/ITAG3.2_proteins.fasta"
+  gene_models:
+    "refs/ITAG3.2_gene_models.gff"
 
 ### Software parameters
 trimmomatic:

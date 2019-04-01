@@ -16,9 +16,9 @@ WORKING_DIR = config["working_dir"]
 RESULT_DIR = config["result_dir"]
 
 # fetch URL to transcriptome multi fasta from configfile
-genome_url = config["refs"]["genome"]
-transcriptome_fasta_url = config["refs"]["proteins_fasta"]
-transcriptome_gtf_url= config["refs"]["transcriptome_gtf"]
+# genome_url = config["refs"]["genome"]
+# transcriptome_fasta_url = config["refs"]["proteins_fasta"]
+# transcriptome_gtf_url= config["refs"]["transcriptome_gtf"]
 
 ########################
 # Samples and conditions
@@ -58,7 +58,7 @@ rule all:
     input:
         FASTQC = expand(RESULT_DIR + "fastqc/{sample}.{step}.html", sample = SAMPLES,step=["original","trimmed"]),
         GTF    = WORKING_DIR + "genome/stringtie_transcriptome.gtf",
-        COUNTS = RESULT_DIR + "counts.txt",
+        COUNTS = WORKING_DIR + "counts.txt",
         DESeq2 = WORKING_DIR + "results/result.csv",
         FINAL  = RESULT_DIR + "final.txt"
     message:
@@ -73,31 +73,31 @@ rule all:
 # Download references
 #####################
 
-rule get_genome_fasta:
-    output:
-        WORKING_DIR + "genome/genome.fasta"
-    message:
-        "downloading the required genomic fasta file"
-    conda:
-        "envs/wget.yaml"
-    shell:
-        "wget -O {output} {genome_url}"
-
-rule get_transcriptome_fasta:
-    output:
-        WORKING_DIR + "genome/ref_transcriptome.fasta"
-    message:
-        "downloading the required transcriptome fasta file"
-    shell:
-        "wget -O {output} {transcriptome_fasta_url}"
-
-rule get_transcriptome_gtf:
-    output:
-        WORKING_DIR + "genome/ref_transcriptome.gff"
-    message:
-        "downloading required transcriptome gtf file"
-    shell:
-        "wget -O {output} {transcriptome_gtf_url}"
+# rule get_genome_fasta:
+#     output:
+#         WORKING_DIR + "genome/genome.fasta"
+#     message:
+#         "downloading the required genomic fasta file"
+#     conda:
+#         "envs/wget.yaml"
+#     shell:
+#         "wget -O {output} {genome_url}"
+#
+# rule get_transcriptome_fasta:
+#     output:
+#         WORKING_DIR + "genome/ref_transcriptome.fasta"
+#     message:
+#         "downloading the required transcriptome fasta file"
+#     shell:
+#         "wget -O {output} {transcriptome_fasta_url}"
+#
+# rule get_transcriptome_gtf:
+#     output:
+#         WORKING_DIR + "genome/ref_transcriptome.gff"
+#     message:
+#         "downloading required transcriptome gtf file"
+#     shell:
+#         "wget -O {output} {transcriptome_gtf_url}"
 
 
 ##################################
@@ -189,7 +189,7 @@ rule fastqc_after_trimming:
 
 rule index:
     input:
-        WORKING_DIR + "genome/genome.fasta"
+        config["refs"]["genome"]
     output:
         [WORKING_DIR + "genome/genome." + str(i) + ".ht2" for i in range(1,9)]
     message:
@@ -250,7 +250,7 @@ rule merge_bams:
 rule create_stringtie_transcriptome:
     input:
         bam = WORKING_DIR + "merged_sorted.bam",
-        Rtc = WORKING_DIR + "genome/ref_transcriptome.gff"
+        ref = config["refs"]["gene_models"]
     output:
         WORKING_DIR + "genome/stringtie_transcriptome.gtf"
     #params:
@@ -262,86 +262,85 @@ rule create_stringtie_transcriptome:
     threads:
         10
     shell:
-        "stringtie -G {input.Rtc} -o {output} {input.bam}"
+        "stringtie -G {input.ref} -o {output} {input.bam}"
 
 
 #############################################################
 #  Blast new transcriptome to get hypothetical gene functions
 #############################################################
 
-# create transcriptome index, for blasting
-rule get_ref_transcriptome_index:
+# create transcriptome blastdb, for blasting
+rule make_blastdb_with_ref_proteome:
     input:
-        WORKING_DIR + "genome/ref_transcriptome.fasta"
+        config["refs"]["proteins"]
     output:
-        [WORKING_DIR + "genome/ref_transcriptome.fasta." + i for i in ("psq", "phr", "pin")]
+        [WORKING_DIR + "genome/ref_proteome.fasta." + i for i in ("psq", "phr", "pin")]
     conda:
         "envs/blast.yaml"
     shell:
         "makeblastdb -in {input} -dbtype prot"
 
-# get fasta's from gtf file
+# get fasta sequences of genes from gtf file
 rule gtf_to_fasta:
     input:
-        gtf  = WORKING_DIR + "genome/stringtie_transcriptome.gtf",
-        gen  = WORKING_DIR + "genome/genome.fasta"
+        gtf  = config["refs"]["gene_models"],
+        genome  = config["refs"]["genome"]
     output:
         WORKING_DIR + "genome/stringtie_transcriptome.fasta"
     conda:
         "envs/tophat.yaml"
     shell:
-        "gtf_to_fasta {input.gtf} {input.gen} {output}"
+        "gtf_to_fasta {input.gtf} {input.genome} {output}"
 
 # Do the blast
-rule blast_for_funtions:
+# Blast the
+rule blastx_for_functions:
     input:
-        newTct     = WORKING_DIR + "genome/stringtie_transcriptome.fasta",
-        refTct     = WORKING_DIR + "genome/ref_transcriptome.fasta",
-        indexFiles = [WORKING_DIR + "genome/ref_transcriptome.fasta." + i for i in ("psq", "phr", "pin")]
+        new_transcriptome   = WORKING_DIR + "genome/stringtie_transcriptome.fasta",
+        reference_proteome_db  = [WORKING_DIR + "genome/ref_proteome.fasta." + i for i in ("psq", "phr", "pin")]
     output:
         WORKING_DIR + "results/stringtie_transcriptome_blast.txt"
     params:
-        evalue     = str(config['blast']['evalue']),     # 1e-10
-        outFmt     = str(config['blast']['outFmt']),     # 6 qseqid qlen slen evalue salltitles
-        maxTargets = str(config['blast']['maxTargets']) # 1bin/bash: indent: command not found
-    threads:
-        5
+        evalue          = str(config['blast']['evalue']),     # 1e-10
+        outfmt          = str(config['blast']['outFmt']),     # 6 qseqid qlen slen evalue salltitles
+        max_target_seqs = str(config['blast']['maxTargets'])
+    threads: 5
     conda:
         "envs/blast.yaml"
     shell:
         "blastx "
-        "-query {input.newTct} "
-        "-db {input.refTct} "
-        "-outfmt \"{params.outFmt}\" "
+        "-query {input.new_transcriptome} "
+        "-db {input.reference_proteome_db} "
+        "-outfmt \"{params.outfmt}\" "
         "-evalue {params.evalue} "
         "-out {output} "
         "-num_threads {threads} "
-        "-max_target_seqs {params.maxTargets}"
+        "-max_target_seqs {params.max_target_seqs}"
 
-        
+
 #########################################
 # Get table containing the raw counts
 #########################################
-        
+
 rule create_counts_table:
     input:
         bams = expand(WORKING_DIR + "mapped/{sample}.bam", sample = SAMPLES),
-        gff  = WORKING_DIR + "genome/stringtie_transcriptome.gtf"
+        gtf  = WORKING_DIR + "genome/stringtie_transcriptome.gtf"
     output:
-        RESULT_DIR + "counts.txt"
+        WORKING_DIR + "counts.txt"
     conda:
         "envs/subread.yaml"
     shell:
-        "featureCounts -O -t transcript -g gene_id -F 'gtf' -a {input.gff} -o {output} {input.bams}"
+        "featureCounts -O -t transcript -g gene_id -F 'gtf' -a {input.gtf} -o {output} {input.bams}"
 
-        
+
 ############################################
-# normalize and get differential expressions 
+# normalize and get differential expressions
 ############################################
-        
+
 rule DESeq2_analysis:
     input:
-        counts      = RESULT_DIR + "counts.txt",
+        counts      = WORKING_DIR + "counts.txt",
         samplefile  = samplefile
     output:
         WORKING_DIR + "results/result.csv"
@@ -354,7 +353,7 @@ rule DESeq2_analysis:
     shell:
         "Rscript scripts/DESeq2.R -c {input.counts} -s {input.samplefile} -o {output} -m {params.maxfraction}"
 
-   
+
 # combine differential expressions with hypothetical gene-functions
 rule results_function:
     input:
@@ -365,4 +364,3 @@ rule results_function:
         final = RESULT_DIR + "final.txt"
     shell:
         "python scripts/DE_with_Function.py {input.fa} {input.blast} {input.deseq} {output.final}"
-
