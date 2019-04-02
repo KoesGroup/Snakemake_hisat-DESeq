@@ -28,8 +28,10 @@ RESULT_DIR = config["result_dir"]
 #units = pd.read_table(config["units"], dtype=str).set_index(["sample"], drop=False)
 samples = pd.read_csv("samples.tsv", dtype=str,index_col=0,sep="\t")
 
-# create lists containing the sample names and conditions
+# create lists containing the sample names
 SAMPLES = samples.index.get_level_values('sample').unique().tolist()
+
+# 
 samplefile = config["samples"]
 
 
@@ -58,45 +60,13 @@ rule all:
         GTF    = WORKING_DIR + "genome/stringtie_transcriptome.gtf",
         COUNTS = WORKING_DIR + "counts.txt",
         DESeq2 = WORKING_DIR + "results/result.csv",
-        FINAL  = RESULT_DIR + "final.txt"
+        FINAL  = RESULT_DIR +  "final.txt"
     message:
         "Job done! Removing temporary directory"
 
 #######
 # Rules
 #######
-
-
-#####################
-# Download references
-#####################
-
-# rule get_genome_fasta:
-#     output:
-#         WORKING_DIR + "genome/genome.fasta"
-#     message:
-#         "downloading the required genomic fasta file"
-#     conda:
-#         "envs/wget.yaml"
-#     shell:
-#         "wget -O {output} {genome_url}"
-#
-# rule get_transcriptome_fasta:
-#     output:
-#         WORKING_DIR + "genome/ref_transcriptome.fasta"
-#     message:
-#         "downloading the required transcriptome fasta file"
-#     shell:
-#         "wget -O {output} {transcriptome_fasta_url}"
-#
-# rule get_transcriptome_gtf:
-#     output:
-#         WORKING_DIR + "genome/ref_transcriptome.gff"
-#     message:
-#         "downloading required transcriptome gtf file"
-#     shell:
-#         "wget -O {output} {transcriptome_gtf_url}"
-
 
 ##################################
 # Fastq QC before / after trimming
