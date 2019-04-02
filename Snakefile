@@ -31,7 +31,7 @@ samples = pd.read_csv("samples.tsv", dtype=str,index_col=0,sep="\t")
 # create lists containing the sample names
 SAMPLES = samples.index.get_level_values('sample').unique().tolist()
 
-# 
+#
 samplefile = config["samples"]
 
 
@@ -242,11 +242,13 @@ rule make_blastdb_with_ref_proteome:
     input:
         config["refs"]["proteins"]
     output:
-        [WORKING_DIR + "genome/ref_proteome.fasta." + i for i in ("psq", "phr", "pin")]
+        [WORKING_DIR + "blast/ref_proteome.fasta." + i for i in ("psq", "phr", "pin")]
     conda:
         "envs/blast.yaml"
+    params:
+        WORKING_DIR + "blast/ref_proteome.fasta"
     shell:
-        "makeblastdb -in {input} -dbtype prot"
+        "makeblastdb -in {input} -dbtype prot -out {params}"
 
 # get fasta sequences of genes from gtf file
 rule gtf_to_fasta:
@@ -265,20 +267,21 @@ rule gtf_to_fasta:
 rule blastx_for_functions:
     input:
         new_transcriptome   = WORKING_DIR + "genome/stringtie_transcriptome.fasta",
-        reference_proteome_db  = [WORKING_DIR + "genome/ref_proteome.fasta." + i for i in ("psq", "phr", "pin")]
+        reference_proteome_db  = [WORKING_DIR + "blast/ref_proteome.fasta." + i for i in ("psq", "phr", "pin")]
     output:
         WORKING_DIR + "results/stringtie_transcriptome_blast.txt"
     params:
         evalue          = str(config['blast']['evalue']),     # 1e-10
         outfmt          = str(config['blast']['outFmt']),     # 6 qseqid qlen slen evalue salltitles
-        max_target_seqs = str(config['blast']['maxTargets'])
-    threads: 5
+        max_target_seqs = str(config['blast']['maxTargets']),
+        dbname          = WORKING_DIR + "blast/ref_proteome.fasta"
+    threads: 10
     conda:
         "envs/blast.yaml"
     shell:
         "blastx "
         "-query {input.new_transcriptome} "
-        "-db {input.reference_proteome_db} "
+        "-db {params.dbname} "
         "-outfmt \"{params.outfmt}\" "
         "-evalue {params.evalue} "
         "-out {output} "
